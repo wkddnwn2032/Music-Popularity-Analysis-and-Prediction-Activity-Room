@@ -631,14 +631,14 @@ if len(model_features) >= 2:
             y = model_df["popularity"]
 
            if "track_id" in model_df.columns:
-    # track_id를 문자열로 변환
-    groups = model_df["track_id"].astype("string")
+            # track_id를 문자열로 변환
+                groups = model_df["track_id"].astype("string")
 
-    # track_id가 없는 행은 각 행마다 고유한 그룹 번호 부여
-    groups = groups.fillna(
-        pd.Series(
-            ["missing_" + str(idx) for idx in model_df.index],
-            index=model_df.index
+                # track_id가 없는 행은 각 행마다 고유한 그룹 번호 부여
+                groups = groups.fillna(
+            pd.Series(
+                ["missing_" + str(idx) for idx in model_df.index],
+                index=model_df.index
         )
     )
 
