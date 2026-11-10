@@ -630,10 +630,38 @@ if len(model_features) >= 2:
             X = model_df[selected_features]
             y = model_df["popularity"]
 
-            if "track_id" in model_df.columns:
-                groups = model_df["track_id"].fillna(
-                    model_df.index.astype(str)
-                )
+           if "track_id" in model_df.columns:
+    # track_id를 문자열로 변환
+    groups = model_df["track_id"].astype("string")
+
+    # track_id가 없는 행은 각 행마다 고유한 그룹 번호 부여
+    groups = groups.fillna(
+        pd.Series(
+            ["missing_" + str(idx) for idx in model_df.index],
+            index=model_df.index
+        )
+    )
+
+    splitter = GroupShuffleSplit(
+        n_splits=1,
+        test_size=0.2,
+        random_state=42
+    )
+
+    train_idx, test_idx = next(
+        splitter.split(X, y, groups)
+    )
+
+    X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
+    y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
+
+else:
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y,
+        test_size=0.2,
+        random_state=42
+    )
+
 
                 splitter = GroupShuffleSplit(
                     n_splits=1,
