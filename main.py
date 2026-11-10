@@ -28,39 +28,74 @@ DATA_URL = "https://raw.githubusercontent.com/wkddnwn2032/spotify-music-data1/re
 GREEN = "#1DB954"
 DARK_GREEN = "#15803D"
 
+# 흰색 배경 및 글씨 색상 설정
 st.markdown("""
 <style>
     .stApp {
-        background-color: #101010;
-        color: white;
+        background-color: #FFFFFF;
+        color: #222222;
     }
 
-    h1, h2, h3 {
-        color: white !important;
+    h1, h2, h3, h4 {
+        color: #191919 !important;
+    }
+
+    p, label, span, li {
+        color: #333333;
     }
 
     [data-testid="stMetric"] {
-        background-color: #1c1c1c;
-        border: 1px solid #303030;
-        padding: 15px;
-        border-radius: 10px;
+        background-color: #F5F8F5;
+        border: 1px solid #DCE8DF;
+        padding: 16px;
+        border-radius: 12px;
     }
 
     [data-testid="stMetricValue"] {
-        color: #1DB954;
+        color: #15803D !important;
+    }
+
+    [data-testid="stMetricLabel"] {
+        color: #444444 !important;
     }
 
     .description {
-        background-color: #1c1c1c;
+        background-color: #F1F8F3;
         border-left: 5px solid #1DB954;
+        color: #222222;
         padding: 15px;
-        border-radius: 5px;
+        border-radius: 7px;
         margin-bottom: 15px;
     }
 
-    .small-text {
-        color: #b3b3b3;
-        font-size: 14px;
+    .description b {
+        color: #15803D;
+    }
+
+    [data-testid="stDataFrame"] {
+        border: 1px solid #E0E0E0;
+        border-radius: 8px;
+    }
+
+    .stButton > button {
+        background-color: #1DB954;
+        color: white;
+        border-radius: 8px;
+        border: none;
+        font-weight: bold;
+    }
+
+    .stButton > button:hover {
+        background-color: #15803D;
+        color: white;
+    }
+
+    .stCaption {
+        color: #666666 !important;
+    }
+
+    hr {
+        border-color: #E5E5E5;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -90,7 +125,7 @@ def load_data():
         )
         df = df.dropna(subset=["popularity"])
 
-    # 음악적 특징 열을 숫자형으로 변환
+    # 숫자형 변수 변환
     numeric_columns = [
         "duration_ms", "popularity", "danceability",
         "energy", "key", "loudness", "mode",
@@ -105,7 +140,7 @@ def load_data():
                 df[col], errors="coerce"
             )
 
-    # explicit은 True/False를 1/0으로 변환
+    # explicit 변환
     if "explicit" in df.columns:
         df["explicit"] = df["explicit"].astype(str).str.lower().map({
             "true": 1,
@@ -303,14 +338,27 @@ fig.update_traces(
 )
 
 fig.update_layout(
-    template="plotly_dark",
-    plot_bgcolor="#101010",
-    paper_bgcolor="#101010",
-    font=dict(color="white"),
+    template="plotly_white",
+    plot_bgcolor="#FFFFFF",
+    paper_bgcolor="#FFFFFF",
+    font=dict(color="#222222"),
+    title_font=dict(color="#191919", size=20),
     coloraxis_showscale=False,
     xaxis_title="인기도",
     yaxis_title="음악 수",
-    title_font_size=20
+    margin=dict(t=60, b=40)
+)
+
+fig.update_xaxes(
+    showgrid=False,
+    linecolor="#CCCCCC",
+    tickfont=dict(color="#333333")
+)
+
+fig.update_yaxes(
+    gridcolor="#EAEAEA",
+    linecolor="#CCCCCC",
+    tickfont=dict(color="#333333")
 )
 
 st.plotly_chart(fig, use_container_width=True)
@@ -329,11 +377,8 @@ if total > 0:
         popularity_count["음악 수"].idxmax()
     ]
 
-    lowest_group = popularity_count.loc[
-        popularity_count["음악 수"].idxmin()
-    ]
-
     highest_ratio = highest_group["음악 수"] / total * 100
+
     low_popularity_count = popularity_count.loc[
         popularity_count["인기도 구간"].isin(
             ["0점", "1~20점", "21~40점"]
@@ -424,13 +469,24 @@ if available_features:
     )
 
     fig_corr.update_layout(
-        template="plotly_dark",
-        plot_bgcolor="#101010",
-        paper_bgcolor="#101010",
-        font=dict(color="white"),
+        template="plotly_white",
+        plot_bgcolor="#FFFFFF",
+        paper_bgcolor="#FFFFFF",
+        font=dict(color="#222222"),
+        title_font=dict(color="#191919", size=20),
         coloraxis_showscale=False,
         xaxis_title="상관계수 (-1 ~ +1)",
         yaxis_title="음악적 특징"
+    )
+
+    fig_corr.update_xaxes(
+        gridcolor="#EAEAEA",
+        zeroline=True,
+        zerolinecolor="#888888"
+    )
+
+    fig_corr.update_yaxes(
+        showgrid=False
     )
 
     st.plotly_chart(
@@ -556,7 +612,6 @@ if len(model_features) >= 2:
         else:
             model_df = df.copy()
 
-            # 선택한 변수를 숫자형으로 변환
             for col in selected_features:
                 model_df[col] = pd.to_numeric(
                     model_df[col], errors="coerce"
@@ -566,7 +621,6 @@ if len(model_features) >= 2:
                 subset=["popularity"]
             )
 
-            # 데이터가 너무 많을 때 학습 속도를 고려해 표본 추출
             if len(model_df) > 30000:
                 model_df = model_df.sample(
                     n=30000,
@@ -576,7 +630,6 @@ if len(model_features) >= 2:
             X = model_df[selected_features]
             y = model_df["popularity"]
 
-            # track_id가 있으면 같은 곡이 양쪽에 나뉘지 않도록 분리
             if "track_id" in model_df.columns:
                 groups = model_df["track_id"].fillna(
                     model_df.index.astype(str)
@@ -602,14 +655,12 @@ if len(model_features) >= 2:
                     random_state=42
                 )
 
-            # 선형 회귀 모델
             linear_model = Pipeline([
                 ("imputer", SimpleImputer(strategy="median")),
                 ("scaler", StandardScaler()),
                 ("model", LinearRegression())
             ])
 
-            # 랜덤 포레스트 모델
             forest_model = Pipeline([
                 ("imputer", SimpleImputer(strategy="median")),
                 ("model", RandomForestRegressor(
@@ -680,7 +731,6 @@ if len(model_features) >= 2:
                 "R²는 음수가 나올 수도 있습니다."
             )
 
-            # 실제 인기도와 예측 인기도 비교
             compare_df = pd.DataFrame({
                 "실제 인기도": y_test,
                 "예측 인기도": best_pred
@@ -705,12 +755,21 @@ if len(model_features) >= 2:
             )
 
             fig_compare.update_layout(
-                template="plotly_dark",
-                plot_bgcolor="#101010",
-                paper_bgcolor="#101010",
-                font=dict(color="white"),
+                template="plotly_white",
+                plot_bgcolor="#FFFFFF",
+                paper_bgcolor="#FFFFFF",
+                font=dict(color="#222222"),
+                title_font=dict(color="#191919", size=20),
                 xaxis_title="실제 인기도",
                 yaxis_title="예측 인기도"
+            )
+
+            fig_compare.update_xaxes(
+                gridcolor="#EAEAEA"
+            )
+
+            fig_compare.update_yaxes(
+                gridcolor="#EAEAEA"
             )
 
             st.plotly_chart(
@@ -718,7 +777,6 @@ if len(model_features) >= 2:
                 use_container_width=True
             )
 
-            # 랜덤 포레스트 중요도
             st.subheader("랜덤 포레스트의 변수 중요도")
 
             importance = forest_model.named_steps[
@@ -745,11 +803,20 @@ if len(model_features) >= 2:
             )
 
             fig_importance.update_layout(
-                template="plotly_dark",
-                plot_bgcolor="#101010",
-                paper_bgcolor="#101010",
-                font=dict(color="white"),
+                template="plotly_white",
+                plot_bgcolor="#FFFFFF",
+                paper_bgcolor="#FFFFFF",
+                font=dict(color="#222222"),
+                title_font=dict(color="#191919", size=20),
                 coloraxis_showscale=False
+            )
+
+            fig_importance.update_xaxes(
+                gridcolor="#EAEAEA"
+            )
+
+            fig_importance.update_yaxes(
+                showgrid=False
             )
 
             st.plotly_chart(
@@ -763,7 +830,7 @@ if len(model_features) >= 2:
                 "직접 의미하지는 않습니다."
             )
 
-            # 새로운 음악의 특징을 입력하여 인기도 예측
+            # 새로운 음악의 인기도 예측
             st.divider()
             st.subheader("🎵 새로운 음악의 인기도 예측")
 
@@ -772,7 +839,6 @@ if len(model_features) >= 2:
             )
 
             input_values = {}
-
             input_columns = st.columns(2)
 
             for i, feature in enumerate(selected_features):
