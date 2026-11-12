@@ -27,6 +27,10 @@ DATA_URL = "https://raw.githubusercontent.com/wkddnwn2032/spotify-music-data1/re
 
 GREEN = "#1DB954"
 
+if "show_genre_heatmap" not in st.session_state:
+    st.session_state.show_genre_heatmap = False
+
+
 st.markdown("""
 <style>
     .stApp {
@@ -265,7 +269,7 @@ else:
 
 
 # ==========================================
-# 3. 장르별 인기도 비교 (트리맵)
+# 3. 장르별 인기도 비교
 # ==========================================
 
 st.divider()
@@ -278,6 +282,7 @@ st.write("""
 
 if "track_genre" in df.columns:
 
+    # 전체 장르별 평균 인기도 계산
     genre_popularity = (
         df.dropna(subset=["track_genre", "popularity"])
         .groupby("track_genre", as_index=False)
@@ -291,41 +296,28 @@ if "track_genre" in df.columns:
             "평균 인기도",
             ascending=False
         )
-        .head(20)
         .reset_index(drop=True)
     )
 
-    if not genre_popularity.empty:
+    # --------------------------------------
+    # TOP 20 트리맵
+    # --------------------------------------
 
-        # 장르별 서로 다른 색상
+    top20_genres = genre_popularity.head(20).copy()
+
+    if not top20_genres.empty:
+
         genre_colors = (
             px.colors.qualitative.Alphabet
             + px.colors.qualitative.Dark24
-        )[:len(genre_popularity)]
+        )[:len(top20_genres)]
 
-        # 평균 인기도를 숫자형으로 명확하게 변환
-        genre_values = genre_popularity[
-            "평균 인기도"
-        ].astype(float).tolist()
-
-        genre_names = genre_popularity[
-            "track_genre"
-        ].astype(str).tolist()
-
-        genre_counts = genre_popularity[
-            "곡 수"
-        ].astype(int).tolist()
-
-        # Graph Objects를 이용해 면적을 직접 지정
         fig_treemap = go.Figure(
             go.Treemap(
-                labels=genre_names,
-                parents=[""] * len(genre_names),
+                labels=top20_genres["track_genre"].astype(str),
+                parents=[""] * len(top20_genres),
+                values=top20_genres["평균 인기도"].astype(float),
 
-                # 사각형의 넓이를 평균 인기도에 비례시킴
-                values=genre_values,
-
-                # 각 장르별 서로 다른 색상
                 marker=dict(
                     colors=genre_colors,
                     line=dict(
@@ -334,30 +326,26 @@ if "track_genre" in df.columns:
                     )
                 ),
 
-                # 사각형 안에 장르명과 인기도 표시
-                texttemplate=(
-                    "%{label}<br>%{value:.1f}점"
-                ),
+                texttemplate="%{label}<br>%{value:.1f}점",
 
                 textfont=dict(
                     size=14,
                     color="#FFFFFF"
                 ),
 
-                # 마우스를 올렸을 때 표시할 정보
-                customdata=genre_counts,
+                customdata=top20_genres[
+                    ["곡 수"]
+                ].to_numpy(),
 
                 hovertemplate=(
                     "<b>%{label}</b><br>"
                     "평균 인기도: %{value:.2f}점<br>"
-                    "곡 수: %{customdata:,}곡"
+                    "곡 수: %{customdata[0]:,}곡"
                     "<extra></extra>"
                 ),
 
-                # 큰 값부터 정렬
                 sort=True,
 
-                # 사각형 배치 방식
                 tiling=dict(
                     packing="squarify",
                     pad=3
@@ -393,12 +381,173 @@ if "track_genre" in df.columns:
 
         st.caption(
             "사각형의 넓이는 평균 인기도에 비례합니다. "
-            "각 장르는 서로 다른 색상으로 구분했으며, "
             "마우스를 올리면 평균 인기도와 곡 수를 확인할 수 있습니다."
         )
 
-    else:
-        st.info("장르별 인기도를 계산할 데이터가 없습니다.")
+    # --------------------------------------
+    # 자세히 보기 버튼
+    # --------------------------------------
+
+    st.divider()
+
+    button_text = (
+        "간략하게 보기"
+        if st.session_state.show_genre_heatmap
+        else "🔍 자세히 보기"
+    )
+
+    if st.button(button_text, key="genre_detail_button"):
+
+        st.session_state.show_genre_heatmap = (
+            not st.session_state.show_genre_heatmap
+        )
+
+    # --------------------------------------
+    # 전체 114개 장르 히트맵
+    # --------------------------------------
+
+    if st.session_state.show_genre_heatmap:
+
+        st.subheader("전체 장르별 평균 인기도 히트맵")
+
+        st.write("""
+        전체 장르를 평균 인기도가 높은 순서대로 정렬했습니다.
+        색상이 밝을수록 평균 인기도가 높고, 어두울수록 낮습니다.
+        각 장르의 색상 칸에 마우스를 올리면 정확한 평균 인기도와 곡 수를 확인할 수 있습니다.
+        """)
+
+        # 전체 장르를 평균 인기도 내림차순으로 정렬
+        heatmap_data = genre_popularity.sort_values(
+            "평균 인기도",
+            ascending=False
+        ).reset_index(drop=True)
+
+        # 114개 장르를 세로축에 배치
+        genre_labels = heatmap_data[
+            "track_genre"
+        ].astype(str).tolist()
+
+        popularity_values = heatmap_data[
+            "평균 인기도"
+        ].astype(float).tolist()
+
+        song_counts = heatmap_data[
+            "곡 수"
+        ].astype(int).tolist()
+
+        # 한 열에 평균 인기도를 표현하는 히트맵
+        fig_heatmap = go.Figure(
+            data=go.Heatmap(
+                z=[
+                    popularity_values
+                ],
+                x=["평균 인기도"],
+                y=genre_labels,
+
+                colorscale=[
+                    [0.0, "#F0FDF4"],
+                    [0.25, "#BBF7D0"],
+                    [0.5, "#4ADE80"],
+                    [0.75, "#16A34A"],
+                    [1.0, "#14532D"]
+                ],
+
+                zmin=0,
+                zmax=100,
+
+                colorbar=dict(
+                    title="평균 인기도",
+                    ticksuffix="점"
+                ),
+
+                customdata=[
+                    song_counts
+                ],
+
+                hovertemplate=(
+                    "<b>%{y}</b><br>"
+                    "평균 인기도: %{z:.2f}점<br>"
+                    "곡 수: %{customdata:,}곡"
+                    "<extra></extra>"
+                ),
+
+                xgap=3,
+                ygap=2
+            )
+        )
+
+        fig_heatmap.update_layout(
+            template="plotly_white",
+            plot_bgcolor="#FFFFFF",
+            paper_bgcolor="#FFFFFF",
+            font=dict(color="#222222"),
+
+            title=dict(
+                text="전체 장르별 평균 인기도 비교",
+                font=dict(
+                    color="#191919",
+                    size=20
+                )
+            ),
+
+            xaxis=dict(
+                title="평균 인기도",
+                side="top",
+                tickfont=dict(size=13),
+                showgrid=False
+            ),
+
+            yaxis=dict(
+                title="음악 장르",
+                autorange="reversed",
+                tickfont=dict(size=11),
+                showgrid=False,
+                automargin=True
+            ),
+
+            height=max(
+                1100,
+                len(heatmap_data) * 22
+            ),
+
+            margin=dict(
+                t=80,
+                l=130,
+                r=80,
+                b=40
+            )
+        )
+
+        st.plotly_chart(
+            fig_heatmap,
+            use_container_width=True
+        )
+
+        st.caption(
+            f"총 {len(heatmap_data)}개 장르를 표시했습니다. "
+            "색상은 평균 인기도를 나타내며, 모든 장르에 동일한 0~100점 색상 기준을 적용했습니다."
+        )
+
+        # 장르별 평균 인기도 표
+        with st.expander("장르별 평균 인기도와 곡 수 표 보기"):
+
+            display_genres = heatmap_data.copy()
+
+            display_genres["평균 인기도"] = (
+                display_genres["평균 인기도"].round(2)
+            )
+
+            display_genres.columns = [
+                "음악 장르",
+                "평균 인기도",
+                "곡 수"
+            ]
+
+            st.dataframe(
+                display_genres,
+                use_container_width=True,
+                hide_index=True
+            )
 
 else:
     st.warning(
@@ -770,7 +919,6 @@ if model_features:
             X = model_df[selected_features]
             y = model_df["popularity"]
 
-            # track_id 기준으로 데이터 분리
             if "track_id" in model_df.columns:
 
                 groups = model_df["track_id"].astype("string")
@@ -825,14 +973,12 @@ if model_features:
                     random_state=42
                 )
 
-            # 선형 회귀 모델
             linear_model = Pipeline([
                 ("imputer", SimpleImputer(strategy="median")),
                 ("scaler", StandardScaler()),
                 ("model", LinearRegression())
             ])
 
-            # 랜덤 포레스트 모델
             forest_model = Pipeline([
                 ("imputer", SimpleImputer(strategy="median")),
                 ("model", RandomForestRegressor(
