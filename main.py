@@ -282,7 +282,6 @@ st.write("""
 
 if "track_genre" in df.columns:
 
-    # 전체 장르별 평균 인기도 계산
     genre_popularity = (
         df.dropna(subset=["track_genre", "popularity"])
         .groupby("track_genre", as_index=False)
@@ -396,14 +395,16 @@ if "track_genre" in df.columns:
         else "🔍 자세히 보기"
     )
 
-    if st.button(button_text, key="genre_detail_button"):
-
+    if st.button(
+        button_text,
+        key="genre_detail_button"
+    ):
         st.session_state.show_genre_heatmap = (
             not st.session_state.show_genre_heatmap
         )
 
     # --------------------------------------
-    # 전체 114개 장르 히트맵
+    # 전체 장르 히트맵
     # --------------------------------------
 
     if st.session_state.show_genre_heatmap:
@@ -416,31 +417,46 @@ if "track_genre" in df.columns:
         각 장르의 색상 칸에 마우스를 올리면 정확한 평균 인기도와 곡 수를 확인할 수 있습니다.
         """)
 
-        # 전체 장르를 평균 인기도 내림차순으로 정렬
-        heatmap_data = genre_popularity.sort_values(
-            "평균 인기도",
-            ascending=False
-        ).reset_index(drop=True)
+        # 평균 인기도가 높은 순서로 정렬
+        heatmap_data = (
+            genre_popularity
+            .sort_values(
+                "평균 인기도",
+                ascending=False
+            )
+            .reset_index(drop=True)
+        )
 
-        # 114개 장르를 세로축에 배치
-        genre_labels = heatmap_data[
-            "track_genre"
-        ].astype(str).tolist()
+        genre_labels = (
+            heatmap_data["track_genre"]
+            .astype(str)
+            .tolist()
+        )
 
-        popularity_values = heatmap_data[
-            "평균 인기도"
-        ].astype(float).tolist()
+        popularity_values = (
+            heatmap_data["평균 인기도"]
+            .astype(float)
+            .tolist()
+        )
 
-        song_counts = heatmap_data[
-            "곡 수"
-        ].astype(int).tolist()
+        song_counts = (
+            heatmap_data["곡 수"]
+            .astype(int)
+            .tolist()
+        )
 
-        # 한 열에 평균 인기도를 표현하는 히트맵
+        # 장르 하나당 한 행이 되도록 2차원 배열 생성
+        z_values = [
+            [value] for value in popularity_values
+        ]
+
+        custom_values = [
+            [count] for count in song_counts
+        ]
+
         fig_heatmap = go.Figure(
             data=go.Heatmap(
-                z=[
-                    popularity_values
-                ],
+                z=z_values,
                 x=["평균 인기도"],
                 y=genre_labels,
 
@@ -457,21 +473,20 @@ if "track_genre" in df.columns:
 
                 colorbar=dict(
                     title="평균 인기도",
-                    ticksuffix="점"
+                    ticksuffix="점",
+                    thickness=18
                 ),
 
-                customdata=[
-                    song_counts
-                ],
+                customdata=custom_values,
 
                 hovertemplate=(
                     "<b>%{y}</b><br>"
                     "평균 인기도: %{z:.2f}점<br>"
-                    "곡 수: %{customdata:,}곡"
+                    "곡 수: %{customdata[0]:,}곡"
                     "<extra></extra>"
                 ),
 
-                xgap=3,
+                xgap=0,
                 ygap=2
             )
         )
@@ -480,7 +495,6 @@ if "track_genre" in df.columns:
             template="plotly_white",
             plot_bgcolor="#FFFFFF",
             paper_bgcolor="#FFFFFF",
-            font=dict(color="#222222"),
 
             title=dict(
                 text="전체 장르별 평균 인기도 비교",
@@ -491,10 +505,10 @@ if "track_genre" in df.columns:
             ),
 
             xaxis=dict(
-                title="평균 인기도",
-                side="top",
-                tickfont=dict(size=13),
-                showgrid=False
+                title="",
+                showticklabels=False,
+                showgrid=False,
+                zeroline=False
             ),
 
             yaxis=dict(
@@ -507,13 +521,13 @@ if "track_genre" in df.columns:
 
             height=max(
                 1100,
-                len(heatmap_data) * 22
+                len(heatmap_data) * 24
             ),
 
             margin=dict(
-                t=80,
+                t=70,
                 l=130,
-                r=80,
+                r=100,
                 b=40
             )
         )
@@ -525,10 +539,9 @@ if "track_genre" in df.columns:
 
         st.caption(
             f"총 {len(heatmap_data)}개 장르를 표시했습니다. "
-            "색상은 평균 인기도를 나타내며, 모든 장르에 동일한 0~100점 색상 기준을 적용했습니다."
+            "모든 장르에 0~100점의 동일한 색상 기준을 적용했습니다."
         )
 
-        # 장르별 평균 인기도 표
         with st.expander("장르별 평균 인기도와 곡 수 표 보기"):
 
             display_genres = heatmap_data.copy()
@@ -905,6 +918,18 @@ if model_features:
             model_df = model_df.loc[
                 model_df[selected_features].notna().any(axis=1)
             ]
+
+            # 모든 값이 결측인 열은 제외
+            usable_features = [
+                col for col in selected_features
+                if model_df[col].notna().any()
+            ]
+
+            if not usable_features:
+                st.error("선택한 특징에 유효한 데이터가 없습니다.")
+                st.stop()
+
+            selected_features = usable_features
 
             if len(model_df) > 30000:
                 model_df = model_df.sample(
