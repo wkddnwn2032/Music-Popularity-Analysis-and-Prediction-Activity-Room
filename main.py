@@ -270,11 +270,98 @@ else:
 
 
 # ==========================================
-# 3. 인기도 분포 그래프
+# 3. 장르별 인기도 비교 (트리맵)
 # ==========================================
 
 st.divider()
-st.header("3. 인기도에 따른 음악 수의 분포")
+st.header("3. 장르별 인기도 비교")
+
+st.write(
+    "장르별 평균 인기도를 계산한 뒤, 인기도가 높은 상위 20개 장르를 "
+    "트리맵으로 비교합니다. 사각형의 넓이가 클수록 평균 인기도가 높습니다."
+)
+
+if "track_genre" in df.columns:
+
+    genre_popularity = (
+        df.dropna(subset=["track_genre", "popularity"])
+        .groupby("track_genre", as_index=False)
+        .agg(
+            **{
+                "평균 인기도": ("popularity", "mean"),
+                "곡 수": ("popularity", "count")
+            }
+        )
+        .sort_values("평균 인기도", ascending=False)
+        .head(20)
+    )
+
+    if not genre_popularity.empty:
+
+        # 장르마다 서로 다른 색상을 지정
+        genre_colors = (
+            px.colors.qualitative.Alphabet
+            + px.colors.qualitative.Dark24
+        )[:len(genre_popularity)]
+
+        fig_treemap = px.treemap(
+            genre_popularity,
+            path=["track_genre"],
+            values="평균 인기도",
+            color="track_genre",
+            color_discrete_sequence=genre_colors,
+            hover_data={
+                "평균 인기도": ":.2f",
+                "곡 수": ":,.0f",
+                "track_genre": False
+            },
+            title="평균 인기도 TOP 20 장르"
+        )
+
+        fig_treemap.update_traces(
+            textinfo="label+value",
+            texttemplate="%{label}<br>%{value:.1f}점",
+            marker=dict(
+                line=dict(color="#FFFFFF", width=2)
+            )
+        )
+
+        fig_treemap.update_layout(
+            template="plotly_white",
+            plot_bgcolor="#FFFFFF",
+            paper_bgcolor="#FFFFFF",
+            font=dict(color="#222222"),
+            title_font=dict(color="#191919", size=20),
+            margin=dict(t=55, l=10, r=10, b=10),
+            uniformtext=dict(minsize=10, mode="hide")
+        )
+
+        st.plotly_chart(
+            fig_treemap,
+            use_container_width=True
+        )
+
+        st.caption(
+            "사각형의 넓이는 장르별 평균 인기도에 비례하며, "
+            "각 장르는 서로 다른 색상으로 구분했습니다. "
+            "마우스를 올리면 평균 인기도와 곡 수를 확인할 수 있습니다."
+        )
+
+    else:
+        st.info("장르별 인기도를 계산할 데이터가 없습니다.")
+
+else:
+    st.warning(
+        "track_genre 열을 찾을 수 없어 장르별 그래프를 표시할 수 없습니다."
+    )
+
+
+# ==========================================
+# 4. 인기도 분포 그래프
+# ==========================================
+
+st.divider()
+st.header("4. 인기도에 따른 음악 수의 분포")
 
 st.write(
     "인기도를 구간별로 나누어 각 구간에 해당하는 음악이 "
@@ -351,7 +438,7 @@ st.plotly_chart(
 
 
 # ==========================================
-# 4. 그래프 해석
+# 5. 그래프 해석
 # ==========================================
 
 st.subheader("💡 그래프를 통해 알 수 있는 내용")
@@ -401,11 +488,11 @@ if total > 0:
 
 
 # ==========================================
-# 5. 음악적 특징과 인기도의 관계
+# 6. 음악적 특징과 인기도의 관계
 # ==========================================
 
 st.divider()
-st.header("4. 음악적 특징과 인기도의 관계")
+st.header("6. 음악적 특징과 인기도의 관계")
 
 st.write(
     "상관계수를 이용하여 음악의 여러 특징과 인기도 사이의 관계를 분석합니다."
@@ -534,11 +621,11 @@ if available_features:
 
 
 # ==========================================
-# 6. 머신러닝으로 음악 인기도 예측
+# 7. 머신러닝으로 음악 인기도 예측
 # ==========================================
 
 st.divider()
-st.header("5. 머신러닝으로 음악 인기도 예측하기")
+st.header("7. 머신러닝으로 음악 인기도 예측하기")
 
 st.write("""
 음악적 특징을 입력 변수로 사용하여 인기도를 예측하는 모델을 만듭니다.
@@ -968,11 +1055,11 @@ if model_features:
 
 
 # ==========================================
-# 7. 최종 해석
+# 8. 최종 해석
 # ==========================================
 
 st.divider()
-st.header("6. 분석 결과 종합 해석")
+st.header("8. 분석 결과 종합 해석")
 
 st.write("""
 음악의 인기도는 춤추기 좋은 정도, 에너지, 음량, 템포와 같은
