@@ -90,16 +90,13 @@ st.markdown("""
 def load_data():
     data = pd.read_csv(DATA_URL)
 
-    # 불필요한 인덱스 열 제거
     data = data.loc[
         :,
         ~data.columns.astype(str).str.startswith("Unnamed")
     ]
 
-    # 완전히 동일한 행 제거
     data = data.drop_duplicates()
 
-    # 숫자형 변수 변환
     numeric_columns = [
         "duration_ms", "popularity", "danceability",
         "energy", "key", "loudness", "mode",
@@ -114,7 +111,6 @@ def load_data():
                 data[col], errors="coerce"
             )
 
-    # explicit을 숫자로 변환
     if "explicit" in data.columns:
         data["explicit"] = (
             data["explicit"]
@@ -128,7 +124,6 @@ def load_data():
             })
         )
 
-    # 인기도가 없는 행 제거
     data = data.dropna(subset=["popularity"])
 
     return data
@@ -276,10 +271,10 @@ else:
 st.divider()
 st.header("3. 장르별 인기도 비교")
 
-st.write(
-    "장르별 평균 인기도를 계산한 뒤, 인기도가 높은 상위 20개 장르를 "
-    "트리맵으로 비교합니다. 사각형의 넓이가 클수록 평균 인기도가 높습니다."
-)
+st.write("""
+장르별 평균 인기도를 계산하여 인기도가 높은 상위 20개 장르를 비교합니다.
+사각형의 넓이가 클수록 평균 인기도가 높습니다.
+""")
 
 if "track_genre" in df.columns:
 
@@ -292,37 +287,81 @@ if "track_genre" in df.columns:
                 "곡 수": ("popularity", "count")
             }
         )
-        .sort_values("평균 인기도", ascending=False)
+        .sort_values(
+            "평균 인기도",
+            ascending=False
+        )
         .head(20)
+        .reset_index(drop=True)
     )
 
     if not genre_popularity.empty:
 
-        # 장르마다 서로 다른 색상을 지정
+        # 장르별 서로 다른 색상
         genre_colors = (
             px.colors.qualitative.Alphabet
             + px.colors.qualitative.Dark24
         )[:len(genre_popularity)]
 
-        fig_treemap = px.treemap(
-            genre_popularity,
-            path=["track_genre"],
-            values="평균 인기도",
-            color="track_genre",
-            color_discrete_sequence=genre_colors,
-            hover_data={
-                "평균 인기도": ":.2f",
-                "곡 수": ":,.0f",
-                "track_genre": False
-            },
-            title="평균 인기도 TOP 20 장르"
-        )
+        # 평균 인기도를 숫자형으로 명확하게 변환
+        genre_values = genre_popularity[
+            "평균 인기도"
+        ].astype(float).tolist()
 
-        fig_treemap.update_traces(
-            textinfo="label+value",
-            texttemplate="%{label}<br>%{value:.1f}점",
-            marker=dict(
-                line=dict(color="#FFFFFF", width=2)
+        genre_names = genre_popularity[
+            "track_genre"
+        ].astype(str).tolist()
+
+        genre_counts = genre_popularity[
+            "곡 수"
+        ].astype(int).tolist()
+
+        # Graph Objects를 이용해 면적을 직접 지정
+        fig_treemap = go.Figure(
+            go.Treemap(
+                labels=genre_names,
+                parents=[""] * len(genre_names),
+
+                # 사각형의 넓이를 평균 인기도에 비례시킴
+                values=genre_values,
+
+                # 각 장르별 서로 다른 색상
+                marker=dict(
+                    colors=genre_colors,
+                    line=dict(
+                        color="#FFFFFF",
+                        width=3
+                    )
+                ),
+
+                # 사각형 안에 장르명과 인기도 표시
+                texttemplate=(
+                    "%{label}<br>%{value:.1f}점"
+                ),
+
+                textfont=dict(
+                    size=14,
+                    color="#FFFFFF"
+                ),
+
+                # 마우스를 올렸을 때 표시할 정보
+                customdata=genre_counts,
+
+                hovertemplate=(
+                    "<b>%{label}</b><br>"
+                    "평균 인기도: %{value:.2f}점<br>"
+                    "곡 수: %{customdata:,}곡"
+                    "<extra></extra>"
+                ),
+
+                # 큰 값부터 정렬
+                sort=True,
+
+                # 사각형 배치 방식
+                tiling=dict(
+                    packing="squarify",
+                    pad=3
+                )
             )
         )
 
@@ -331,9 +370,20 @@ if "track_genre" in df.columns:
             plot_bgcolor="#FFFFFF",
             paper_bgcolor="#FFFFFF",
             font=dict(color="#222222"),
-            title_font=dict(color="#191919", size=20),
-            margin=dict(t=55, l=10, r=10, b=10),
-            uniformtext=dict(minsize=10, mode="hide")
+            title=dict(
+                text="평균 인기도 TOP 20 장르",
+                font=dict(
+                    color="#191919",
+                    size=20
+                )
+            ),
+            margin=dict(
+                t=55,
+                l=10,
+                r=10,
+                b=10
+            ),
+            height=550
         )
 
         st.plotly_chart(
@@ -342,8 +392,8 @@ if "track_genre" in df.columns:
         )
 
         st.caption(
-            "사각형의 넓이는 장르별 평균 인기도에 비례하며, "
-            "각 장르는 서로 다른 색상으로 구분했습니다. "
+            "사각형의 넓이는 평균 인기도에 비례합니다. "
+            "각 장르는 서로 다른 색상으로 구분했으며, "
             "마우스를 올리면 평균 인기도와 곡 수를 확인할 수 있습니다."
         )
 
@@ -707,7 +757,6 @@ if model_features:
                 model_df[selected_features].notna().any(axis=1)
             ]
 
-            # 학습 속도를 고려해 최대 30,000개 표본 사용
             if len(model_df) > 30000:
                 model_df = model_df.sample(
                     n=30000,
@@ -721,12 +770,11 @@ if model_features:
             X = model_df[selected_features]
             y = model_df["popularity"]
 
-            # track_id 기준으로 학습 데이터와 평가 데이터 분리
+            # track_id 기준으로 데이터 분리
             if "track_id" in model_df.columns:
 
                 groups = model_df["track_id"].astype("string")
 
-                # track_id가 없는 행은 개별 그룹으로 처리
                 missing_group_values = pd.Series(
                     [
                         "missing_" + str(idx)
@@ -806,7 +854,6 @@ if model_features:
                 linear_pred = linear_model.predict(X_test)
                 forest_pred = forest_model.predict(X_test)
 
-            # 모델 평가 함수
             def evaluate_model(name, actual, predicted):
 
                 return {
@@ -847,7 +894,6 @@ if model_features:
                 hide_index=True
             )
 
-            # MAE가 낮은 모델 선택
             best_index = results["MAE"].idxmin()
             best_model_name = results.loc[
                 best_index, "모델"
